@@ -1,0 +1,19 @@
+{
+  "uuid": "7c08b1f0-6caf-4e35-b4d0-caea5052d654",
+  "shortName": "navcube",
+  "longName": "Navigational Cube",
+  "companyName": "JacksCan",
+  "versionLabel": "0.0",
+  "sdkVersion": "3",
+  "targetPlatforms": ["aplite", "basalt", "chalk"],
+  "enableMultiJS": true,
+  "watchapp": {
+    "watchface": false
+  },
+  "appKeys": {
+    "dummy": 0
+  },
+  "resources": {
+    "media": []
+  }
+}
