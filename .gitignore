@@ -3,3 +3,9 @@ build
 
 # Ignore waf lock file
 .lock-waf*
+
+# Ignore clang files
+.clang*
+
+# Ignore atom-build file
+.atom-build.*
