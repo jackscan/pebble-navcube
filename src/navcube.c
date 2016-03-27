@@ -16,6 +16,7 @@ struct
 {
     Window *window;
     vec3 accel;
+    int32_t heading;
 } g;
 
 static int32_t sqrti(int32_t i)
@@ -105,11 +106,20 @@ static void redraw(struct Layer *layer, GContext *ctx)
         bounds.origin.y + h2,
     };
 
+    int32_t cosa = sin_lookup(g.heading);
+    int32_t sina = cos_lookup(g.heading);
     vec3 d[3];
-    d[0] = (vec3){ { 1, 0, 0 } };
     d[2] = g.accel;
     vec3_normalize(d + 2);
+    int32_t cosax = (d[2].x * (TRIG_MAX_RATIO - cosa)) / TRIG_MAX_RATIO;
+    d[0] = (vec3){ {
+        cosax * d[2].x / VEC3_NORM_LEN + VEC3_NORM_LEN * cosa / TRIG_MAX_RATIO,
+        cosax * d[2].y / VEC3_NORM_LEN + d[2].z * sina / TRIG_MAX_RATIO,
+        cosax * d[2].z / VEC3_NORM_LEN - d[2].y * sina / TRIG_MAX_RATIO,
+    } };
+    
     vec3_cross(d + 1, d + 0, d + 2);
+    vec3_div(d + 1, VEC3_NORM_LEN);
     vec3_cross(d + 0, d + 2, d + 1);
     vec3_div(d + 0, VEC3_NORM_LEN);
     vec3_normalize(d + 0);
@@ -156,6 +166,11 @@ static void accel_handler(AccelRawData *data, uint32_t num, uint64_t ts)
     layer_mark_dirty(window_get_root_layer(g.window));
 }
 
+static void compass_handler(CompassHeadingData heading)
+{
+    g.heading = heading.true_heading;
+}
+
 static void window_load(Window *window)
 {
     Layer *window_layer = window_get_root_layer(window);
@@ -163,11 +178,15 @@ static void window_load(Window *window)
 
     accel_service_set_sampling_rate(ACCEL_SAMPLING_50HZ);
     accel_raw_data_service_subscribe(1, accel_handler);
+
+    compass_service_set_heading_filter(0);
+    compass_service_subscribe(compass_handler);
 }
 
 static void window_unload(Window *window)
 {
     accel_data_service_unsubscribe();
+    compass_service_unsubscribe();
 }
 
 static void init()
