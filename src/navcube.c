@@ -16,7 +16,13 @@ struct
 {
     Window *window;
     vec3 accel;
-    int32_t heading;
+    struct
+    {
+        int32_t da;
+        int32_t last_angle;
+        uint16_t dt;
+        uint16_t last_time;
+    } hdg;
 } g;
 
 static int32_t sqrti(int32_t i)
@@ -93,6 +99,21 @@ static inline void vec3_draw_line(vec3 *a, vec3 *b, GPoint c, int16_t s,
     graphics_draw_line(ctx, vec3_project(a, c, s), vec3_project(b, c, s));
 }
 
+static inline int32_t timediff_ms(uint16_t a, uint16_t b)
+{
+    return a > b ? a - b : a + 1000 - b;
+}
+
+static inline int32_t interpolate_heading(uint16_t t)
+{
+    int32_t dt = timediff_ms(t, g.hdg.last_time);
+    if (g.hdg.dt == 0) g.hdg.dt = 1;
+    if (dt > g.hdg.dt) dt = g.hdg.dt;
+    int32_t a = g.hdg.da * dt / (int32_t)g.hdg.dt + g.hdg.last_angle;
+    return a < 0 ? a + TRIG_MAX_ANGLE
+                 : a >= TRIG_MAX_ANGLE ? a - TRIG_MAX_ANGLE : a;
+}
+
 static void redraw(struct Layer *layer, GContext *ctx)
 {
     GRect bounds = layer_get_bounds(layer);
@@ -106,8 +127,9 @@ static void redraw(struct Layer *layer, GContext *ctx)
         bounds.origin.y + h2,
     };
 
-    int32_t cosa = sin_lookup(g.heading);
-    int32_t sina = cos_lookup(g.heading);
+    int32_t a = interpolate_heading(time_ms(NULL, NULL));
+    int32_t cosa = sin_lookup(a);
+    int32_t sina = cos_lookup(a);
     vec3 d[3];
     d[2] = g.accel;
     vec3_normalize(d + 2);
@@ -117,7 +139,7 @@ static void redraw(struct Layer *layer, GContext *ctx)
         cosax * d[2].y / VEC3_NORM_LEN + d[2].z * sina / TRIG_MAX_RATIO,
         cosax * d[2].z / VEC3_NORM_LEN - d[2].y * sina / TRIG_MAX_RATIO,
     } };
-    
+
     vec3_cross(d + 1, d + 0, d + 2);
     vec3_div(d + 1, VEC3_NORM_LEN);
     vec3_cross(d + 0, d + 2, d + 1);
@@ -168,7 +190,16 @@ static void accel_handler(AccelRawData *data, uint32_t num, uint64_t ts)
 
 static void compass_handler(CompassHeadingData heading)
 {
-    g.heading = heading.true_heading;
+    uint16_t ms = time_ms(NULL, NULL);
+    int32_t curr = interpolate_heading(ms);
+    int32_t next = heading.true_heading;
+    g.hdg.dt = timediff_ms(ms, g.hdg.last_time);
+    g.hdg.last_time = ms;
+    g.hdg.last_angle = curr;
+    g.hdg.da = next - curr;
+    int32_t pia = TRIG_MAX_ANGLE / 2;
+    if (g.hdg.da < -pia) g.hdg.da += TRIG_MAX_ANGLE;
+    if (g.hdg.da > pia) g.hdg.da -= TRIG_MAX_ANGLE;
 }
 
 static void window_load(Window *window)
